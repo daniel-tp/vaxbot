@@ -46,7 +46,7 @@ impl EventHandler for Handler {
     }
 
     async fn ready(&self, _: Context, ready: Ready) {
-        println!("{} is connected!", ready.user.name);
+        info!("{} is connected!", ready.user.name);
     }
 }
 
@@ -63,7 +63,7 @@ async fn main() -> Result<()> {
         .expect("Err creating client");
 
     if let Err(why) = client.start().await {
-        println!("Client error: {:?}", why);
+        error!("Client error: {:?}", why);
     }
     Ok(())
 }
