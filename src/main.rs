@@ -2,7 +2,7 @@ use anyhow::Result;
 use human_format::Formatter;
 use log::{error, info};
 
-use serde::{de::value::StrDeserializer, Deserialize};
+use serde::Deserialize;
 use serenity::{
     async_trait,
     model::{channel::Message, gateway::Ready},
@@ -18,17 +18,14 @@ struct Handler;
 
 #[async_trait]
 impl EventHandler for Handler {
-
     async fn message(&self, ctx: Context, msg: Message) {
         if msg.content.to_lowercase().starts_with("!vacced") {
-
-            let first_msg = msg.channel_id.say(&ctx.http, "Loading vaccination stats...").await;
-            let vacced_uk = tokio::spawn(async {
-                get_vacced_count(Country::UK).await.unwrap()
-            });
-            let vacced_can = tokio::spawn(async {
-                get_vacced_count(Country::CAN).await.unwrap()
-            });
+            let first_msg = msg
+                .channel_id
+                .say(&ctx.http, "Loading vaccination stats...")
+                .await;
+            let vacced_uk = tokio::spawn(async { get_vacced_count(Country::UK).await.unwrap() });
+            let vacced_can = tokio::spawn(async { get_vacced_count(Country::CAN).await.unwrap() });
 
             let vacced_uk = vacced_uk.await.unwrap();
             let vacced_can = vacced_can.await.unwrap();
@@ -54,8 +51,7 @@ impl EventHandler for Handler {
 async fn main() -> Result<()> {
     env_logger::init();
 
-    let token = env::var("DISCORD_TOKEN")
-    .expect("Expected a token in the environment");
+    let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
 
     let mut client = Client::builder(token)
         .event_handler(Handler)
