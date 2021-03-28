@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use human_format::Formatter;
 use log::{error, info};
 
@@ -9,6 +9,9 @@ use serenity::{
     prelude::*,
 };
 use std::env;
+use tracery::{Grammar, grammar};
+use static_init::{dynamic};
+
 
 enum Country {
     UK,
@@ -49,6 +52,7 @@ impl EventHandler for Handler {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    dotenv::dotenv().ok();
     env_logger::init();
 
     let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
@@ -71,8 +75,8 @@ struct VaccCount {
 }
 
 async fn get_vacced_count(country: Country) -> Result<VaccCount> {
-    let count;
-    let date;
+    let count:u32;
+    let date:String;
     let prcnt;
     match country {
         Country::UK => {
@@ -82,29 +86,16 @@ async fn get_vacced_count(country: Country) -> Result<VaccCount> {
                 ("metric", "cumPeopleVaccinatedFirstDoseByPublishDate"),
             ];
             let retrieved = get_api_content(url, params).await?;
-            count = retrieved["body"][0]["cumPeopleVaccinatedFirstDoseByPublishDate"]
-                .as_u64()
-                .unwrap() as u32;
-            date = retrieved["body"][0]["date"].as_str().unwrap().to_string();
+            count = gjson::get(&retrieved, "body.0.cumPeopleVaccinatedFirstDoseByPublishDate").u32();
+            date = gjson::get(&retrieved, "body.0.date").to_string();
             prcnt = count as f64 * (100 as f64 / 66800000 as f64);
         }
         Country::CAN => {
             let url = "https://api.covid19tracker.ca/summary";
             let retrieved = get_api_content(url, vec![]).await?;
-            date = retrieved["data"][0]["latest_date"]
-                .as_str()
-                .unwrap()
-                .to_string();
-            count = retrieved["data"][0]["total_vaccinations"]
-                .as_str()
-                .unwrap()
-                .parse::<u32>()
-                .unwrap()
-                - retrieved["data"][0]["total_vaccinated"]
-                    .as_str()
-                    .unwrap()
-                    .parse::<u32>()
-                    .unwrap();
+
+            count = gjson::get(&retrieved, "data.0.total_vaccinations").u32()-gjson::get(&retrieved, "data.0.total_vaccinated").u32();
+            date = gjson::get(&retrieved, "data.0.latest_date").to_string();
             prcnt = count as f64 * (100 as f64 / 37590000 as f64);
         }
     }
@@ -113,8 +104,9 @@ async fn get_vacced_count(country: Country) -> Result<VaccCount> {
     Ok(VaccCount { count, date, prcnt })
 }
 
-async fn get_api_content(url: &str, params: Vec<(&str, &str)>) -> Result<serde_json::Value> {
+async fn get_api_content(url: &str, params: Vec<(&str, &str)>) -> Result<String> {
     let client = reqwest::Client::new();
     let request = client.get(url).query(&params).send().await?;
-    Ok(request.json::<serde_json::Value>().await?)
+    let content = request.text().await;
+    Ok(content?)
 }
