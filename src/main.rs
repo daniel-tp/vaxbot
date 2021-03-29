@@ -32,11 +32,11 @@ impl EventHandler for Handler {
             let vacced_uk = vacced_uk.await.unwrap();
             let vacced_can = vacced_can.await.unwrap();
             let message = format!(
-                "🇬🇧 {} which is {:.2}% of population\n🇨🇦 {} which is {:.2}% of population",
+                "🇬🇧 {} which is {:.2}% of population ({})\n🇨🇦 {} which is {:.2}% of population ({})",
                 Formatter::new().format(vacced_uk.count as f64),
-                vacced_uk.prcnt,
+                vacced_uk.prcnt, vacced_uk.date,
                 Formatter::new().format(vacced_can.count as f64),
-                vacced_can.prcnt
+                vacced_can.prcnt, vacced_can.date
             );
             if let Ok(mut msg) = first_msg {
                 msg.edit(&ctx.http, |m| m.content(message)).await.unwrap();
@@ -118,4 +118,22 @@ async fn get_api_content(url: &str, params: Vec<(&str, &str)>) -> Result<String>
     let request = client.get(url).query(&params).send().await?;
     let content = request.text().await;
     Ok(content?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[tokio::test]
+    async fn check_uk() -> Result<()> {
+        let vacced_uk = get_vacced_count(Country::UK).await?;
+        assert!(vacced_uk.count > 30000000);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn check_can() -> Result<()> {
+        let vacced_can = get_vacced_count(Country::CAN).await?;
+        assert!(vacced_can.count > 4000000);
+        Ok(())
+    }
 }
