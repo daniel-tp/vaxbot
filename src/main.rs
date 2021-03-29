@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use human_format::Formatter;
 use log::{error, info};
 
@@ -8,10 +8,9 @@ use serenity::{
     model::{channel::Message, gateway::Ready},
     prelude::*,
 };
+use static_init::dynamic;
 use std::env;
-use tracery::{Grammar, grammar};
-use static_init::{dynamic};
-
+use tracery::{grammar, Grammar};
 
 enum Country {
     UK,
@@ -41,6 +40,11 @@ impl EventHandler for Handler {
             );
             if let Ok(mut msg) = first_msg {
                 msg.edit(&ctx.http, |m| m.content(message)).await.unwrap();
+            }
+        }
+        if msg.content.to_lowercase().starts_with("!version") {
+            if let Err(why) = msg.channel_id.say(&ctx.http, format!("Vaxbot {}", env!("CARGO_PKG_VERSION"))).await {
+                println!("Error sending message: {:?}", why);
             }
         }
     }
@@ -75,8 +79,8 @@ struct VaccCount {
 }
 
 async fn get_vacced_count(country: Country) -> Result<VaccCount> {
-    let count:u32;
-    let date:String;
+    let count: u32;
+    let date: String;
     let prcnt;
     match country {
         Country::UK => {
@@ -86,7 +90,11 @@ async fn get_vacced_count(country: Country) -> Result<VaccCount> {
                 ("metric", "cumPeopleVaccinatedFirstDoseByPublishDate"),
             ];
             let retrieved = get_api_content(url, params).await?;
-            count = gjson::get(&retrieved, "body.0.cumPeopleVaccinatedFirstDoseByPublishDate").u32();
+            count = gjson::get(
+                &retrieved,
+                "body.0.cumPeopleVaccinatedFirstDoseByPublishDate",
+            )
+            .u32();
             date = gjson::get(&retrieved, "body.0.date").to_string();
             prcnt = count as f64 * (100 as f64 / 66800000 as f64);
         }
@@ -94,7 +102,8 @@ async fn get_vacced_count(country: Country) -> Result<VaccCount> {
             let url = "https://api.covid19tracker.ca/summary";
             let retrieved = get_api_content(url, vec![]).await?;
 
-            count = gjson::get(&retrieved, "data.0.total_vaccinations").u32()-gjson::get(&retrieved, "data.0.total_vaccinated").u32();
+            count = gjson::get(&retrieved, "data.0.total_vaccinations").u32()
+                - gjson::get(&retrieved, "data.0.total_vaccinated").u32();
             date = gjson::get(&retrieved, "data.0.latest_date").to_string();
             prcnt = count as f64 * (100 as f64 / 37590000 as f64);
         }
