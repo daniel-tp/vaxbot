@@ -29,12 +29,12 @@ impl EventHandler for Handler {
 
             let vacced_uk = vacced_uk.await.unwrap();
             let vacced_can = vacced_can.await.unwrap();
-            let message = format!(
-                "🇬🇧 {} have had a first dose which is {:.2}% of population, {} are completely vaccinated. ({})\n🇨🇦 {} have had a first dose which is {:.2}% of population, {} are completely vaccinated. ({})",
-                Formatter::new().format(vacced_uk.first_count as f64),
-                vacced_uk.prcnt,  Formatter::new().format(vacced_uk.fully_count as f64), vacced_uk.date,
-                Formatter::new().format(vacced_can.first_count as f64),
-                vacced_can.prcnt,  Formatter::new().format(vacced_can.fully_count as f64), vacced_can.date
+            let message = format!("💉💉💉\n\
+                🇬🇧 {} {:.2}% (+{}, {:.2}%) have had a first dose, \n{} {:.2}% (+{} 📈, {:.2}%) are completely vaccinated. ({})\n🇨🇦 {} {:.2}% (+{}, {:.2}%) have had a first dose, \n{} {:.2}% (+{} 📈, {:.2}%) are completely vaccinated. ({})",
+                Formatter::new().format(vacced_uk.first.count as f64), vacced_uk.first.count_prcnt, vacced_uk.first.diff, vacced_uk.first.diff_prcnt,
+                Formatter::new().format(vacced_uk.full.count as f64), vacced_uk.full.count_prcnt, vacced_uk.full.diff, vacced_uk.full.diff_prcnt, vacced_uk.date,
+                Formatter::new().format(vacced_can.first.count as f64), vacced_can.first.count_prcnt, vacced_can.first.diff, vacced_can.first.diff_prcnt,
+                Formatter::new().format(vacced_can.full.count as f64), vacced_can.full.count_prcnt, vacced_can.full.diff, vacced_can.full.diff_prcnt, vacced_can.date,
             );
             if let Ok(mut msg) = first_msg {
                 msg.edit(&ctx.http, |m| m.content(message)).await.unwrap();
@@ -74,19 +74,34 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-#[derive(Deserialize, Debug)]
-struct VaccCount {
-    first_count: u32,
-    fully_count: u32,
+struct VaccDayData {
+    first: VaccedCount,
+    full: VaccedCount,
     date: String,
-    prcnt: f64,
 }
 
-async fn get_vacced_count(country: Country) -> Result<VaccCount> {
-    let first_count: u32;
-    let fully_count: u32;
+struct VaccedCount {
+    count: u32,
+    count_prcnt: f64,
+    diff: u32,
+    diff_prcnt: f64,
+}
+
+impl VaccedCount {
+    fn new(count: u32, diff: u32, population: u32) -> VaccedCount {
+        VaccedCount {
+            count,
+            count_prcnt: count as f64 * (100 as f64 / population as f64),
+            diff,
+            diff_prcnt: diff as f64 * (100 as f64 / population as f64),
+        }
+    }
+}
+
+async fn get_vacced_count(country: Country) -> Result<VaccDayData> {
+    let first: VaccedCount;
+    let full: VaccedCount;
     let date: String;
-    let prcnt;
     match country {
         Country::UK => {
             let url = "https://api.coronavirus.data.gov.uk/v2/data";
@@ -94,34 +109,49 @@ async fn get_vacced_count(country: Country) -> Result<VaccCount> {
                 ("areaType", "overview"),
                 ("metric", "cumPeopleVaccinatedFirstDoseByPublishDate"),
                 ("metric", "cumPeopleVaccinatedCompleteByPublishDate"),
+                ("metric", "newPeopleVaccinatedFirstDoseByPublishDate"),
+                ("metric", "newPeopleVaccinatedCompleteByPublishDate"),
             ];
             let retrieved = get_api_content(url, params).await?;
-            first_count = gjson::get(
+            let first_count = gjson::get(
                 &retrieved,
                 "body.0.cumPeopleVaccinatedFirstDoseByPublishDate",
             )
             .u32();
-            fully_count = gjson::get(
+            let first_diff = gjson::get(
+                &retrieved,
+                "body.0.newPeopleVaccinatedFirstDoseByPublishDate",
+            )
+            .u32();
+            first = VaccedCount::new(first_count, first_diff, 66800000);
+            let full_count = gjson::get(
                 &retrieved,
                 "body.0.cumPeopleVaccinatedCompleteByPublishDate",
             )
             .u32();
+            let full_diff = gjson::get(
+                &retrieved,
+                "body.0.newPeopleVaccinatedCompleteByPublishDate",
+            )
+            .u32();
+            full = VaccedCount::new(full_count, full_diff, 66800000);
             date = gjson::get(&retrieved, "body.0.date").to_string();
-            prcnt = first_count as f64 * (100 as f64 / 66800000 as f64);
         }
         Country::CAN => {
             let url = "https://api.covid19tracker.ca/summary";
             let retrieved = get_api_content(url, vec![]).await?;
-            fully_count = gjson::get(&retrieved, "data.0.total_vaccinated").u32();
-            first_count = gjson::get(&retrieved, "data.0.total_vaccinations").u32()
-                - fully_count;
+            let full_count = gjson::get(&retrieved, "data.0.total_vaccinated").u32();
+            let full_diff = gjson::get(&retrieved, "data.0.change_vaccinated").u32();
+            full = VaccedCount::new(full_count, full_diff, 37590000);
+            let first_count =
+                gjson::get(&retrieved, "data.0.total_vaccinations").u32() - full_count;
+            let first_diff = gjson::get(&retrieved, "data.0.change_vaccinations").u32() - full_diff;
+            first = VaccedCount::new(first_count, first_diff, 37590000);
             date = gjson::get(&retrieved, "data.0.latest_date").to_string();
-            prcnt = first_count as f64 * (100 as f64 / 37590000 as f64);
         }
     }
-    //info!("Json: {:#?}", retrieved);
 
-    Ok(VaccCount { first_count, fully_count, date, prcnt })
+    Ok(VaccDayData { first, full, date })
 }
 
 async fn get_api_content(url: &str, params: Vec<(&str, &str)>) -> Result<String> {
@@ -137,14 +167,14 @@ mod tests {
     #[tokio::test]
     async fn check_uk() -> Result<()> {
         let vacced_uk = get_vacced_count(Country::UK).await?;
-        assert!(vacced_uk.first_count > 30000000);
+        assert!(vacced_uk.first.count > 30000000);
         Ok(())
     }
 
     #[tokio::test]
     async fn check_can() -> Result<()> {
         let vacced_can = get_vacced_count(Country::CAN).await?;
-        assert!(vacced_can.first_count > 4000000);
+        assert!(vacced_can.first.count > 4000000);
         Ok(())
     }
 }
