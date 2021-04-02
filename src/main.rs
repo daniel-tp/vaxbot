@@ -2,7 +2,6 @@ use anyhow::Result;
 use human_format::Formatter;
 use log::{error, info};
 
-use serde::Deserialize;
 use serenity::{
     async_trait,
     model::{channel::Message, gateway::Ready},

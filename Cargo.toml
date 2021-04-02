@@ -1,6 +1,6 @@
 [package]
 name = "vaxbot"
-version = "0.1.4"
+version = "0.1.6"
 authors = ["Daniel P <daniel@pont.in>"]
 edition = "2018"
 
