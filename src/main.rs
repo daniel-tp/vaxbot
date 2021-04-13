@@ -18,7 +18,7 @@ struct Handler;
 #[async_trait]
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
-        if msg.content.to_lowercase().starts_with("!vacced") {
+        if msg.content.to_lowercase().starts_with("!vac") || msg.content.to_lowercase().starts_with("!vax") {
             let first_msg = msg
                 .channel_id
                 .say(&ctx.http, "Loading vaccination stats...")
@@ -87,8 +87,8 @@ struct VaccedCount {
 }
 
 impl VaccedCount {
-    fn new(count: u32, diff: u32, population: u32) -> VaccedCount {
-        VaccedCount {
+    fn new(count: u32, diff: u32, population: u32) -> Self {
+        Self {
             count,
             count_prcnt: count as f64 * (100 as f64 / population as f64),
             diff,
