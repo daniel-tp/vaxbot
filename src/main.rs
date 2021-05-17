@@ -29,7 +29,7 @@ impl EventHandler for Handler {
             let vacced_uk = vacced_uk.await.unwrap();
             let vacced_can = vacced_can.await.unwrap();
             let message = format!("💉💉💉\n\
-                🇬🇧 {} {:.2}% (+{}, {:.2}%) have had a first dose, \n{} {:.2}% (+{} 📈, {:.2}%) are completely vaccinated. ({})\n🇨🇦 {} {:.2}% (+{}, {:.2}%) have had a first dose, \n{} {:.2}% (+{} 📈, {:.2}%) are completely vaccinated. ({})",
+                🇬🇧 {} **{:.2}%** (+{} 📈, {:.2}%) have had a first dose, \n{} **{:.2}%** (+{} 📈, {:.2}%) are completely vaccinated. ({})\n🇨🇦 {} **{:.2}%** (+{} 📈, {:.2}%) have had a first dose, \n{} **{:.2}%** (+{} 📈, {:.2}%) are completely vaccinated. ({})",
                 Formatter::new().format(vacced_uk.first.count as f64), vacced_uk.first.count_prcnt, vacced_uk.first.diff, vacced_uk.first.diff_prcnt,
                 Formatter::new().format(vacced_uk.full.count as f64), vacced_uk.full.count_prcnt, vacced_uk.full.diff, vacced_uk.full.diff_prcnt, vacced_uk.date,
                 Formatter::new().format(vacced_can.first.count as f64), vacced_can.first.count_prcnt, vacced_can.first.diff, vacced_can.first.diff_prcnt,
