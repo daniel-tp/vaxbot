@@ -1,6 +1,8 @@
 # VaxBot
 A simple discord bot that provides UK and Canada vaccination data when using !vacced
 
+This was made quick and dirty, and the code is not a representation of my programming ability.
+
 ## Setup
 To use this bot you need a [Bot Token](https://www.writebots.com/discord-bot-token/). You will also need to add it to any servers you wish to use it with, it only needs message reading and sending permission.
 
