@@ -2,11 +2,7 @@ use anyhow::Result;
 use human_format::Formatter;
 use log::{error, info};
 
-use serenity::{
-    async_trait,
-    model::{channel::Message, gateway::Ready},
-    prelude::*,
-};
+use serenity::{async_trait, model::{channel::Message, gateway::Ready, prelude::Activity}, prelude::*};
 use std::env;
 
 enum Country {
@@ -18,26 +14,12 @@ struct Handler;
 #[async_trait]
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
-        if msg.content.to_lowercase().starts_with("!vac") || msg.content.to_lowercase().starts_with("!vax") {
-            let first_msg = msg
-                .channel_id
-                .say(&ctx.http, "Loading vaccination stats...")
-                .await;
-            let vacced_uk = tokio::spawn(async { get_vacced_count(Country::UK).await.unwrap() });
-            let vacced_can = tokio::spawn(async { get_vacced_count(Country::CAN).await.unwrap() });
 
-            let vacced_uk = vacced_uk.await.unwrap();
-            let vacced_can = vacced_can.await.unwrap();
-            let message = format!("💉💉💉\n\
-                🇬🇧 {} **{:.2}%** (+{} 📈, {:.2}%) have had a first dose, \n{} **{:.2}%** (+{} 📈, {:.2}%) are completely vaccinated. ({})\n🇨🇦 {} **{:.2}%** (+{} 📈, {:.2}%) have had a first dose, \n{} **{:.2}%** (+{} 📈, {:.2}%) are completely vaccinated. ({})",
-                Formatter::new().format(vacced_uk.first.count as f64), vacced_uk.first.count_prcnt, vacced_uk.first.diff, vacced_uk.first.diff_prcnt,
-                Formatter::new().format(vacced_uk.full.count as f64), vacced_uk.full.count_prcnt, vacced_uk.full.diff, vacced_uk.full.diff_prcnt, vacced_uk.date,
-                Formatter::new().format(vacced_can.first.count as f64), vacced_can.first.count_prcnt, vacced_can.first.diff, vacced_can.first.diff_prcnt,
-                Formatter::new().format(vacced_can.full.count as f64), vacced_can.full.count_prcnt, vacced_can.full.diff, vacced_can.full.diff_prcnt, vacced_can.date,
-            );
-            if let Ok(mut msg) = first_msg {
-                msg.edit(&ctx.http, |m| m.content(message)).await.unwrap();
-            }
+        //TODO: Improve this to be more elegant
+        if msg.content.to_lowercase().starts_with("!vac")
+            || msg.content.to_lowercase().starts_with("!vax")
+        {
+            send_vax_stats(&ctx,&msg).await;
         }
         if msg.content.to_lowercase().starts_with("!version") {
             if let Err(why) = msg
@@ -45,13 +27,17 @@ impl EventHandler for Handler {
                 .say(&ctx.http, format!("Vaxbot {}", env!("CARGO_PKG_VERSION")))
                 .await
             {
-                println!("Error sending message: {:?}", why);
+                error!("Error sending message: {:?}", why);
             }
         }
     }
 
-    async fn ready(&self, _: Context, ready: Ready) {
+    async fn ready(&self, ctx: Context, ready: Ready) {
         info!("{} is connected!", ready.user.name);
+
+        //TODO: Improve this to have a better message
+        let activity = Activity::listening(format!("to the vax: v{}", env!("CARGO_PKG_VERSION")).as_str());
+        ctx.set_activity(activity).await;
     }
 }
 
@@ -71,6 +57,29 @@ async fn main() -> Result<()> {
         error!("Client error: {:?}", why);
     }
     Ok(())
+}
+
+//TODO: Improve this to be more elegant
+async fn send_vax_stats(ctx: &Context, msg: &Message) {
+    let first_msg = msg
+        .channel_id
+        .say(&ctx.http, "Loading vaccination stats...")
+        .await;
+    let vacced_uk = tokio::spawn(async { get_vacced_count(Country::UK).await.unwrap() });
+    let vacced_can = tokio::spawn(async { get_vacced_count(Country::CAN).await.unwrap() });
+
+    let vacced_uk = vacced_uk.await.unwrap();
+    let vacced_can = vacced_can.await.unwrap();
+    let message = format!("💉💉💉\n\
+        🇬🇧 {} **{:.2}%** (+{} 📈, {:.2}%) have had a first dose, \n{} **{:.2}%** (+{} 📈, {:.2}%) are completely vaccinated. ({})\n🇨🇦 {} **{:.2}%** (+{} 📈, {:.2}%) have had a first dose, \n{} **{:.2}%** (+{} 📈, {:.2}%) are completely vaccinated. ({})",
+        Formatter::new().format(vacced_uk.first.count as f64), vacced_uk.first.count_prcnt, vacced_uk.first.diff, vacced_uk.first.diff_prcnt,
+        Formatter::new().format(vacced_uk.full.count as f64), vacced_uk.full.count_prcnt, vacced_uk.full.diff, vacced_uk.full.diff_prcnt, vacced_uk.date,
+        Formatter::new().format(vacced_can.first.count as f64), vacced_can.first.count_prcnt, vacced_can.first.diff, vacced_can.first.diff_prcnt,
+        Formatter::new().format(vacced_can.full.count as f64), vacced_can.full.count_prcnt, vacced_can.full.diff, vacced_can.full.diff_prcnt, vacced_can.date,
+    );
+    if let Ok(mut msg) = first_msg {
+        msg.edit(&ctx.http, |m| m.content(message)).await.unwrap();
+    }
 }
 
 struct VaccDayData {
@@ -97,13 +106,15 @@ impl VaccedCount {
     }
 }
 
+//TODO: Improve this to be more elegant
 async fn get_vacced_count(country: Country) -> Result<VaccDayData> {
     let first: VaccedCount;
     let full: VaccedCount;
     let date: String;
+
     match country {
         Country::UK => {
-            let url = "https://api.coronavirus.data.gov.uk/v2/data";
+            let url = "https://api.coronavirus.data.gov.uk/v2/data"; //Official Source
             let params = vec![
                 ("areaType", "overview"),
                 ("metric", "cumPeopleVaccinatedFirstDoseByPublishDate"),
@@ -137,7 +148,7 @@ async fn get_vacced_count(country: Country) -> Result<VaccDayData> {
             date = gjson::get(&retrieved, "body.0.date").to_string();
         }
         Country::CAN => {
-            let url = "https://api.covid19tracker.ca/summary";
+            let url = "https://api.covid19tracker.ca/summary"; //Unofficial Source
             let retrieved = get_api_content(url, vec![]).await?;
             let full_count = gjson::get(&retrieved, "data.0.total_vaccinated").u32();
             let full_diff = gjson::get(&retrieved, "data.0.change_vaccinated").u32();
@@ -164,6 +175,7 @@ async fn get_api_content(url: &str, params: Vec<(&str, &str)>) -> Result<String>
 mod tests {
     use super::*;
     #[tokio::test]
+    //TODO: Implement more tests
     async fn check_uk() -> Result<()> {
         let vacced_uk = get_vacced_count(Country::UK).await?;
         assert!(vacced_uk.first.count > 30000000);
